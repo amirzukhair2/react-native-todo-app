@@ -8,6 +8,7 @@ import Details from "./app/screens/Details";
 import { MD3LightTheme as DefaultTheme, PaperProvider } from 'react-native-paper';
 import Login from "./app/screens/Login";
 
+import MyCalendar from './app/screens/calendar';
 
 import { onAuthStateChanged, User } from "firebase/auth";
 import { FIREBASE_AUTH } from "./firebaseConfig";
@@ -73,7 +74,7 @@ export default function App() {
     <PaperProvider theme={theme}>
       <NavigationContainer>
         <Stack.Navigator initialRouteName={session && session.user ? "マイToDo" : "Login"}>
-
+        {/* <Stack.Navigator initialRouteName={"Agenda"}> */}
 
         {session && session.user ? (
              <Stack.Screen
@@ -101,7 +102,8 @@ export default function App() {
         }
 
         <Stack.Screen name="Inside" component={(props: any) => <Account {...props} key={session?.user.id} session={session} /> }  options={{headerShown: false}}/>
-         
+        {/* <Stack.Screen name="Agenda" component={(props: any) => <MyCalendar /> }/> */}
+
         </Stack.Navigator>
       </NavigationContainer>
     </PaperProvider>

@@ -1,3 +1,8 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Hide the hour divider line */
+.rbc-time-slot {
+    border-top: none !important;
+  }

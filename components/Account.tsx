@@ -128,6 +128,10 @@ export default function Account({ session,navigation }: { session: Session } & R
         <Button title="ToDoを開く" onPress={() => navigation.navigate('マイToDo')} />
       </View>
 
+      <View style={styles.verticallySpaced}>
+        <Button title="Agenda" onPress={() => navigation.navigate('Agenda')} />
+      </View>
+      
       </View>
     </View>
   )

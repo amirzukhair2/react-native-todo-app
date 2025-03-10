@@ -1,20 +1,28 @@
 import { addDoc, collection, deleteDoc, doc, onSnapshot, updateDoc, Timestamp } from 'firebase/firestore'
 import React, {useEffect, useState} from 'react'
-import { View, FlatList, TouchableOpacity,ScrollView } from 'react-native'
+import { View, FlatList, TouchableOpacity, ScrollView } from 'react-native'
 import { FIREBASE_DB } from '../../firebaseConfig'
 import { Button, TextInput, Text, IconButton, MD3Colors, Portal, Modal} from 'react-native-paper';
+import MyCalendar from '../../app/screens/calendar';
+
+import { supabase } from '../../lib/supabase';
+
 
 export interface Todo{
     title: string;
     done: boolean;
     id: string;
     createdAt: Timestamp;
+    start: Date,
+    end: Date
 }
 
 export type Item = {
     title: string;
     done: boolean;
     id: string;
+    start: Date,
+    end: Date
   };
 
 function List({navigation}: any) {
@@ -47,35 +55,51 @@ function List({navigation}: any) {
      }
 
     const containerStyle = {backgroundColor: 'white', padding: 20, margin: 20, width: `100%` as '100%', maxWidth: 680, alignSelf: `center` as 'center'};
+     
 
+    const addNewTodo = async (title: string,start: Date, end: Date) => {
+        const { data, error } = await supabase
+            .from('todo') // your table name
+            .insert([
+                {
+                title,
+                // done: false,
+                start,
+                end
+                }
+            ])
+            if (error) {
+                console.error('Error inserting todo:', error);
+            } else {
+                console.log('Todo added:', data);
+            }
+    }
 
     useEffect(() => {
-     const todoRef = collection(FIREBASE_DB, 'todo');
 
-     const subscriber = onSnapshot(todoRef, {
-        next: (snapshot) => {
 
-            console.log('UPDATED')
-
-            const todos: Todo[] = [];
-            snapshot.docs.forEach(doc => {
-                todos.push({
-                    id: doc.id,
-                    ...doc.data()
-                } as Todo);
-            })
-
-            const sortedTodos = todos.sort((a,b) => {
-                const dateA = a.createdAt.toDate();
-                const dateB = b.createdAt.toDate();
-                return dateB.getTime() - dateA.getTime(); // Sort by most recent
-            })
-
-            setTodos(sortedTodos);
+     async function fetchTodos() {
+        const { data, error } = await supabase
+          .from('todo')
+          .select('*');  // Select all columns from the "todo" table
+        
+        if (error) {
+          console.error('Error fetching todos:', error);
+          return;
         }
-     });
-
-     return () => subscriber();
+        const sortedTodos = data?.sort((a, b) => {
+            const dateA = new Date(a.createdAt);
+            const dateB = new Date(b.createdAt);
+            return dateB.getTime() - dateA.getTime(); // Sort by most recent
+          });
+        console.log('Todos:', data);
+        setTodos(sortedTodos); // Update the todos state
+      }
+      
+      fetchTodos();
+      return () =>{
+        
+      };
     }, []);
 
     const addTodo = async () => {
@@ -119,13 +143,19 @@ function List({navigation}: any) {
     
   return (
     <View className='px-4' style={{flex: 1}}>
+       
+       <ScrollView>
+
+     
         <View className='py-4 flex items-center flex-row gap-5'>
             <TextInput label="新しいToDoを追加" style={{flex: 1}} onChangeText={(text: string) => setTodo(text)} value={todo} />
             <Button onPress={addTodo} icon="plus" mode="contained" disabled={todo === ''} >
                 ToDoをついか
             </Button>
         </View>
-        
+
+        <MyCalendar onPress={showModal} items={todos} addNewTodo={addNewTodo}/>
+{/*         
         <View style={{flex: 1}}>
             {todos.length > 0 && (
                     <FlatList
@@ -134,7 +164,7 @@ function List({navigation}: any) {
                     keyExtractor={(todo: Todo) => todo.id}
                     />
             )}
-        </View>
+        </View> */}
 
         <Portal>
             <Modal visible={visible} onDismiss={hideModal} contentContainerStyle={containerStyle}>
@@ -150,12 +180,9 @@ function List({navigation}: any) {
                 </Button>  
             </>
             )}
-
-                
-               
             </Modal>
         </Portal>
-        
+        </ScrollView>
     </View>
   )
 }
