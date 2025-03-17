@@ -2,17 +2,30 @@ import dayjs from 'dayjs'
 import React from 'react'
 import {
   SafeAreaView,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
   useWindowDimensions,
 } from 'react-native'
-import { Snackbar } from 'react-native-paper';
-import { Calendar, type ICalendarEventBase, type Mode } from 'react-native-big-calendar'
+
+import { Calendar, type ICalendarEventBase, type Mode, CalendarTouchableOpacityProps } from 'react-native-big-calendar'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { events } from '../../events'
+
+
+export interface MyCustomEventType {
+  color: string
+}
+
+const renderEvent = <T extends ICalendarEventBase>(
+  event: T,
+  touchableOpacityProps: CalendarTouchableOpacityProps,
+) => (
+  <TouchableOpacity {...touchableOpacityProps}>
+    <Text>{event.title}</Text>
+  </TouchableOpacity>
+)
 
 
 const EmptyHourComponent = () => <View />; // Empty component
@@ -25,16 +38,15 @@ interface IndexProps {
 
 export default function Index({ onPress,items, addNewTodo }: IndexProps) {
   const { height } = useWindowDimensions()
-  const [mode, setMode] = React.useState<Mode>('week')
   const [additionalEvents, setAdditionalEvents] = React.useState<ICalendarEventBase[]>([])
 
   const addEvent = React.useCallback(
     (start: Date) => {
       const title = 'new Event'
       const end = dayjs(start).add(59, 'minute').toDate()
-      console.log(start)
-      setAdditionalEvents([...additionalEvents, { start, end, title }])
-      // onPress({title: 'test'});
+      
+      onPress({title: ''});
+      // setAdditionalEvents([...additionalEvents, { start, end, title }])
       addNewTodo(title,start,end);
     },
     [additionalEvents],
@@ -60,12 +72,12 @@ export default function Index({ onPress,items, addNewTodo }: IndexProps) {
             onLongPressCell={addLongEvent}
             onPressCell={addEvent}
             sortedMonthView={false}
-            mode={mode}
+            mode={'week'}
             moreLabel="+{moreCount}"
             onPressMoreLabel={(moreEvents) => {
               console.log(moreEvents)
             }}
-            
+            renderEvent={renderEvent}
             itemSeparatorComponent={() => <View style={styles.itemSeparator} />}
           />
         </SafeAreaView>

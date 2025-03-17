@@ -1,190 +1,270 @@
-import { addDoc, collection, deleteDoc, doc, onSnapshot, updateDoc, Timestamp } from 'firebase/firestore'
-import React, {useEffect, useState} from 'react'
-import { View, FlatList, TouchableOpacity, ScrollView } from 'react-native'
-import { FIREBASE_DB } from '../../firebaseConfig'
-import { Button, TextInput, Text, IconButton, MD3Colors, Portal, Modal} from 'react-native-paper';
-import MyCalendar from '../../app/screens/calendar';
-
-import { supabase } from '../../lib/supabase';
-
-
-export interface Todo{
-    title: string;
-    done: boolean;
-    id: string;
-    createdAt: Timestamp;
-    start: Date,
-    end: Date
-}
+import React, { useEffect, useState } from "react";
+import {
+  View,
+  ScrollView,
+  StyleSheet,
+  SafeAreaView,
+  useWindowDimensions,
+  TouchableOpacity,
+  Text,
+} from "react-native";
+import { Button, TextInput, Portal, Modal } from "react-native-paper";
+import MyCalendar from "../../app/screens/calendar";
+import { supabase } from "../../lib/supabase";
+import dayjs from "dayjs";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import {
+  Calendar,
+  type ICalendarEventBase,
+  type Mode,
+  CalendarTouchableOpacityProps,
+} from "react-native-big-calendar";
 
 export type Item = {
+  title: string;
+  id: string;
+  start: Date;
+  end: Date;
+};
+
+const EmptyHourComponent = () => <View />; // Empty component
+
+const renderEvent = <T extends ICalendarEventBase>(
+  event: T,
+  touchableOpacityProps: CalendarTouchableOpacityProps
+) => {
+  // Extract key from touchableOpacityProps if it's present
+  const { key, ...restProps } = touchableOpacityProps;
+
+  return (
+    <TouchableOpacity key={key} {...restProps} className="justify-center">
+      <Text className="text-base text-center text-white">{event.title}</Text>
+    </TouchableOpacity>
+  );
+};
+
+function List({ navigation }: any) {
+  const [eventData, setEventData] = React.useState<{
+    id: number;
     title: string;
-    done: boolean;
-    id: string;
-    start: Date,
-    end: Date
+    start: Date;
+    end: Date;
+  } | null>(null);
+
+  const [todos, setTodos] = useState<Item[]>([]);
+  const { height } = useWindowDimensions();
+  const [additionalEvents, setAdditionalEvents] = React.useState<
+    ICalendarEventBase[]
+  >([]);
+
+  const [visible, setVisible] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<{ title: string } | null>(
+    null
+  );
+
+  const [isNew, setIsNew] = useState(false);
+
+  const showModal = (item: any) => {
+    setSelectedItem(item);
+    setVisible(true);
+  };
+  const hideModal = async () => {
+    setVisible(false);
+
+    if (eventData) {
+      const { id, title, start, end } = eventData;
+      if (isNew) {
+        addNewTodo(title, start, end);
+        setAdditionalEvents([...additionalEvents, { start, end, title }]);
+        setEventData(null); // Reset event data after adding
+      } else {
+        updateTodo(id, title);
+      }
+    }
   };
 
-function List({navigation}: any) {
-    const [todos, setTodos] = useState<Todo[]>([]);
-    const [todo, setTodo] = useState('');
-
-
-    const [visible, setVisible] = useState(false);
-    const [selectedItem, setSelectedItem] = useState<Item | null>(null);
-
-    const showModal = (item: any) => {
-        setSelectedItem(item);
-        setVisible(true);
-    } 
-    const hideModal = async () => {
-        setVisible(false);
-
-        if (selectedItem) {  
-            const ref = doc(FIREBASE_DB, `todo/${selectedItem.id}`);  
-            await updateDoc(ref, { title: selectedItem.title });  // 🔥 Updates Firestore
-        }  
-
-        setSelectedItem(null);
-    } 
-
-     const handleTitleChange = (text: string) => {
-        if (selectedItem) {
-            setSelectedItem({ ...selectedItem, title: text });
-          }
-     }
-
-    const containerStyle = {backgroundColor: 'white', padding: 20, margin: 20, width: `100%` as '100%', maxWidth: 680, alignSelf: `center` as 'center'};
-     
-
-    const addNewTodo = async (title: string,start: Date, end: Date) => {
-        const { data, error } = await supabase
-            .from('todo') // your table name
-            .insert([
-                {
-                title,
-                // done: false,
-                start,
-                end
-                }
-            ])
-            if (error) {
-                console.error('Error inserting todo:', error);
-            } else {
-                console.log('Todo added:', data);
-            }
+  const handleTitleChange = (text: string) => {
+    if (eventData) {
+      setEventData({ ...eventData, title: text });
     }
+  };
 
-    useEffect(() => {
+  const containerStyle = {
+    backgroundColor: "white",
+    padding: 20,
+    margin: 20,
+    width: `100%` as "100%",
+    maxWidth: 680,
+    alignSelf: `center` as "center",
+  };
 
+  const addEvent = React.useCallback(
+    (start: Date) => {
+      setIsNew(true);
+      const id = 0;
+      const title = "";
+      const end = dayjs(start).add(59, "minute").toDate();
+      setEventData({ id, title, start, end }); // Store event details in state
+      showModal({ title: "" });
 
-     async function fetchTodos() {
-        const { data, error } = await supabase
-          .from('todo')
-          .select('*');  // Select all columns from the "todo" table
-        
-        if (error) {
-          console.error('Error fetching todos:', error);
-          return;
-        }
-        const sortedTodos = data?.sort((a, b) => {
-            const dateA = new Date(a.createdAt);
-            const dateB = new Date(b.createdAt);
-            return dateB.getTime() - dateA.getTime(); // Sort by most recent
-          });
-        console.log('Todos:', data);
-        setTodos(sortedTodos); // Update the todos state
-      }
-      
+      // addNewTodo(title,start,end);
+    },
+    [additionalEvents]
+  );
+
+  const editEvent = (event: any) => {
+    setIsNew(false);
+    setEventData({
+      id: event.id,
+      title: event.title,
+      start: event.start,
+      end: event.end,
+    }); // Load event data
+    showModal({ title: event.title }); // Open modal for editing
+  };
+  const addNewTodo = async (title: string, start: Date, end: Date) => {
+    const { data, error } = await supabase
+      .from("todo") // your table name
+      .insert([
+        {
+          title,
+          // done: false,
+          start,
+          end,
+        },
+      ]);
+    if (error) {
+      console.error("Error inserting todo:", error);
+    } else {
+      console.log("Todo added:", data);
+    }
+  };
+
+  async function fetchTodos() {
+    const { data, error } = await supabase.from("todo").select("*"); // Select all columns from the "todo" table
+
+    if (error) {
+      console.error("Error fetching todos:", error);
+      return;
+    }
+    const sortedTodos = data
+      ?.map((todo) => {
+        // Convert the 'start' value to a Date object and add 2 hours
+        const startDate = dayjs(todo.start).toDate();
+        const endDate = dayjs(todo.end).toDate();
+
+        // Update the todo's 'start and end' fields with the new time
+        return { ...todo, start: startDate, end: endDate };
+      })
+      .sort((a, b) => {
+        const dateA = new Date(a.start);
+        const dateB = new Date(b.start);
+        return dateB.getTime() - dateA.getTime(); // Sort by most recent 'start' time
+      });
+
+    console.log("Todos:", sortedTodos);
+    setTodos(sortedTodos); // Update the todos state
+  }
+
+  const updateTodo = async (id: number, title: string) => {
+    const { data, error } = await supabase
+      .from("todo") // your table name
+      .update({ title })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error inserting todo:", error);
+    } else {
+      console.log("Todo added:", data);
       fetchTodos();
-      return () =>{
-        
-      };
-    }, []);
-
-    const addTodo = async () => {
-       const doc = await addDoc(collection(FIREBASE_DB, 'todo'), {title: todo, done: false, createdAt: Timestamp.now()});
-       setTodo('');
     }
-    
-    const renderTodo = ({item}: any) => {
+  };
 
-      
-        const ref = doc(FIREBASE_DB,`todo/${item.id}`);
-        const toggleDone = () => {
-            updateDoc(ref, {done: !item.done});
-        }   
+  useEffect(() => {
+    fetchTodos();
+  }, []);
 
-        const deleteItem = () => {
-            deleteDoc(ref);
-        }
-
-        return(
-            <View>
-                <TouchableOpacity onPress={() => showModal(item)}>
-                    <View className='flex flex-row items-center justify-between bg-white p-4 rounded px-2 mb-2'>
-                        <View className='flex flex-row items-center'>
-                        <IconButton onPress={toggleDone}
-                         iconColor='green'
-                         icon={item.done ? "checkbox-blank-circle" : "checkbox-blank-circle-outline"}
-                         />
-                        <Text variant="bodyLarge" className='px-2'>
-                            {item.title}
-                        </Text>
-                        </View>
-                        <IconButton onPress={deleteItem} icon="trash-can" mode="contained" />
-                    </View>
-                  
-                </TouchableOpacity>
-            </View>
-           
-        )
-    }
-    
   return (
-    <View className='px-4' style={{flex: 1}}>
-       
-       <ScrollView>
+    <View className="px-4" style={{ flex: 1 }}>
+      <ScrollView>
+        {/* <MyCalendar onPress={showModal} items={todos} addNewTodo={addNewTodo}/> */}
 
-     
-        <View className='py-4 flex items-center flex-row gap-5'>
-            <TextInput label="新しいToDoを追加" style={{flex: 1}} onChangeText={(text: string) => setTodo(text)} value={todo} />
-            <Button onPress={addTodo} icon="plus" mode="contained" disabled={todo === ''} >
-                ToDoをついか
-            </Button>
-        </View>
-
-        <MyCalendar onPress={showModal} items={todos} addNewTodo={addNewTodo}/>
-{/*         
-        <View style={{flex: 1}}>
-            {todos.length > 0 && (
-                    <FlatList
-                    data={todos}
-                    renderItem={renderTodo}
-                    keyExtractor={(todo: Todo) => todo.id}
-                    />
-            )}
-        </View> */}
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <View>
+            <SafeAreaView>
+              <Calendar
+                hourComponent={EmptyHourComponent} // Hide hour labels
+                height={height - 60}
+                events={[...todos, ...additionalEvents]}
+                onPressCell={addEvent}
+                onPressEvent={editEvent}
+                sortedMonthView={false}
+                mode={"week"}
+                moreLabel="+{moreCount}"
+                onPressMoreLabel={(moreEvents) => {
+                  console.log(moreEvents);
+                }}
+                renderEvent={renderEvent}
+                itemSeparatorComponent={() => (
+                  <View style={styles.itemSeparator} />
+                )}
+              />
+            </SafeAreaView>
+          </View>
+        </GestureHandlerRootView>
 
         <Portal>
-            <Modal visible={visible} onDismiss={hideModal} contentContainerStyle={containerStyle}>
-
+          <Modal
+            visible={visible}
+            onDismiss={hideModal}
+            contentContainerStyle={containerStyle}
+          >
             {selectedItem && (
-                <>
+              <>
                 <TextInput
-                value={selectedItem.title}
-                onChangeText={handleTitleChange}
+                  value={eventData?.title}
+                  onChangeText={handleTitleChange}
                 />
-                <Button onPress={hideModal} mode="contained" style={{ marginTop: 10 }}>  
-                ほぞんしてとじる  
-                </Button>  
-            </>
+                <Button
+                  onPress={hideModal}
+                  mode="contained"
+                  style={{ marginTop: 10 }}
+                >
+                  ほぞんしてとじる
+                </Button>
+              </>
             )}
-            </Modal>
+          </Modal>
         </Portal>
-        </ScrollView>
+      </ScrollView>
     </View>
-  )
+  );
 }
 
-export default List
+export default List;
+
+const styles = StyleSheet.create({
+  buttonContainer: {
+    backgroundColor: "#f1f1f1",
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    paddingVertical: 5,
+    marginEnd: 15,
+  },
+  buttonContainerActive: {
+    borderBottomColor: "blue",
+    borderBottomWidth: 3,
+  },
+  buttonRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 10,
+  },
+  headline: {
+    fontSize: 16,
+  },
+  itemSeparator: {
+    height: 5,
+    marginBottom: 20,
+  },
+});
