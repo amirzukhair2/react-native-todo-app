@@ -20,7 +20,7 @@ import {
   CalendarTouchableOpacityProps,
   CalendarHeaderProps,
 } from "react-native-big-calendar";
-import 'dayjs/locale/ja'
+import "dayjs/locale/ja";
 
 export type Item = {
   title: string;
@@ -31,7 +31,7 @@ export type Item = {
 
 const EmptyHourComponent = () => <View />; // Empty component
 
-const renderEvent = <T extends ICalendarEventBase>(
+const renderEvent = <T extends ICalendarEventBase & { id?: string | number }>(
   event: T,
   touchableOpacityProps: CalendarTouchableOpacityProps
 ) => {
@@ -41,11 +41,10 @@ const renderEvent = <T extends ICalendarEventBase>(
   return (
     <TouchableOpacity key={key} {...restProps} className="justify-center">
       <Text className="text-base text-center text-white">{event.title}</Text>
+      {/* {event.id && <Text className="text-xs text-center text-gray-300">ID: {event.id}</Text>} */}
     </TouchableOpacity>
   );
 };
-
-
 
 function List({ navigation }: any) {
   const [eventData, setEventData] = React.useState<{
@@ -53,7 +52,12 @@ function List({ navigation }: any) {
     title: string;
     start: Date;
     end: Date;
-  } | null>(null);
+  }>({
+    id: 0,
+    title: "", // Provide a default title
+    start: new Date(), // Provide a default start date (current date/time)
+    end: new Date(), // Provide a default end date (current date/time)
+  });
 
   const [todos, setTodos] = useState<Item[]>([]);
   const { height } = useWindowDimensions();
@@ -68,9 +72,9 @@ function List({ navigation }: any) {
 
   const [isNew, setIsNew] = useState(false);
 
-  const showModal = (item: any) => {
-    setSelectedItem(item);
+  const showModal = (item: any, date: Date) => {
     setVisible(true);
+    setSelectedItem(item);
   };
   const hideModal = async () => {
     setVisible(false);
@@ -79,10 +83,10 @@ function List({ navigation }: any) {
       const { id, title, start, end } = eventData;
       if (isNew) {
         addNewTodo(title, start, end);
-        setAdditionalEvents([...additionalEvents, { start, end, title }]);
-        setEventData(null); // Reset event data after adding
-       
+        setAdditionalEvents([...todos, { id, start, end, title }]);
+        // setEventData(null); // Reset event data after adding
       } else {
+        setAdditionalEvents([...additionalEvents, { id, start, end, title }]);
         updateTodo(id, title);
       }
     }
@@ -103,47 +107,36 @@ function List({ navigation }: any) {
     alignSelf: `center` as "center",
   };
 
-  const addEvent = React.useCallback(
-    (s: Date) => {
+  const addEvent = (s: Date) => {
+    const selectedDay = dayjs(s).date(); // Get the selected day
 
-      const selectedDay = dayjs(s).date(); // Get the selected day
+    const occupiedHours = todos
+      .filter((todo) => dayjs(todo.start).date() === selectedDay) // Filter by the same day
+      .map((todo) => dayjs(todo.start).hour());
 
+    //Find the first available hour
+    let startHour = 0; // Start checking from 1 AM
+    while (occupiedHours.includes(startHour)) {
+      startHour++;
+    }
 
-      const occupiedHours = additionalEvents
-      .filter(todo => dayjs(todo.start).date() === selectedDay) // Filter by the same day
-      .map(todo => dayjs(todo.start).hour());
-
-   
-
-      //Find the first available hour
-      let startHour = 0; // Start checking from 1 AM
-      while (occupiedHours.includes(startHour)) {
-        startHour++;
-      }
-
-  
-      setIsNew(true);
-      const id = 0;
-      const title = "";
-      const start = dayjs(s).hour(startHour).minute(0).toDate();
-      const end = dayjs(start).add(59, "minute").toDate();
-      setEventData({ id, title, start, end }); // Store event details in state
-      showModal({ title: "" });
-     
-    },
-    [todos,additionalEvents]
-  );
+    const id = 0;
+    const title = "";
+    const start = dayjs(s).hour(startHour).minute(0).toDate();
+    const end = dayjs(start).add(59, "minute").toDate();
+    setEventData({ id, title, start, end }); // Store event details in state
+  };
 
   const editEvent = (event: any) => {
     setIsNew(false);
+    console.log(event);
     setEventData({
       id: event.id,
       title: event.title,
       start: event.start,
       end: event.end,
     }); // Load event data
-    showModal({ title: event.title }); // Open modal for editing
-    console.log(event.id)
+    showModal({ title: event.title }, event.start); // Open modal for editing
   };
   const addNewTodo = async (title: string, start: Date, end: Date) => {
     const { data, error } = await supabase
@@ -155,10 +148,12 @@ function List({ navigation }: any) {
           start,
           end,
         },
-      ]);
+      ])
+      .select();
     if (error) {
       console.error("Error inserting todo:", error);
     } else {
+      fetchTodos();
       console.log("Todo added:", data);
     }
   };
@@ -208,7 +203,6 @@ function List({ navigation }: any) {
     fetchTodos();
   }, []);
 
-
   const renderHeader: React.FC<CalendarHeaderProps<ICalendarEventBase>> = ({
     dateRange,
   }) => {
@@ -216,15 +210,20 @@ function List({ navigation }: any) {
       <View style={styles.headerContainer}>
         {dateRange.map((date, index) => (
           <View key={index}>
-            <Text className="text-center text-base text-white bg-blue-500 p-2 max-w-fit mx-auto rounded-full">{dayjs(date).format('MMM D')}</Text>
+            <Text className="text-center text-base text-white bg-blue-500 p-2 max-w-fit mx-auto rounded-full">
+              {dayjs(date).format("MMM D")}
+            </Text>
             <Button
-                    onPress={() => addEvent(date.toDate())}
-                    mode="contained"
-                    style={{ marginTop: 10 }}
-                  >
-                    Todoを追加する
-                    ＋
-                  </Button>
+              onPress={() => {
+                addEvent(date.toDate());
+                showModal("1", date.toDate());
+                setIsNew(true);
+              }}
+              mode="contained"
+              style={{ marginTop: 10 }}
+            >
+              Todoを追加する ＋
+            </Button>
           </View>
         ))}
       </View>
@@ -295,7 +294,11 @@ function List({ navigation }: any) {
 export default List;
 
 const styles = StyleSheet.create({
-  headerContainer: { flexDirection: "row", justifyContent: "space-around", padding: 5 },
+  headerContainer: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    padding: 5,
+  },
   buttonContainer: {
     backgroundColor: "#f1f1f1",
     borderRadius: 10,
@@ -320,4 +323,3 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
 });
-
