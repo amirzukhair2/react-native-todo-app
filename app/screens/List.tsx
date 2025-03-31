@@ -18,7 +18,9 @@ import {
   type ICalendarEventBase,
   type Mode,
   CalendarTouchableOpacityProps,
+  CalendarHeaderProps,
 } from "react-native-big-calendar";
+import 'dayjs/locale/ja'
 
 export type Item = {
   title: string;
@@ -42,6 +44,8 @@ const renderEvent = <T extends ICalendarEventBase>(
     </TouchableOpacity>
   );
 };
+
+
 
 function List({ navigation }: any) {
   const [eventData, setEventData] = React.useState<{
@@ -77,6 +81,7 @@ function List({ navigation }: any) {
         addNewTodo(title, start, end);
         setAdditionalEvents([...additionalEvents, { start, end, title }]);
         setEventData(null); // Reset event data after adding
+       
       } else {
         updateTodo(id, title);
       }
@@ -99,17 +104,34 @@ function List({ navigation }: any) {
   };
 
   const addEvent = React.useCallback(
-    (start: Date) => {
+    (s: Date) => {
+
+      const selectedDay = dayjs(s).date(); // Get the selected day
+
+
+      const occupiedHours = additionalEvents
+      .filter(todo => dayjs(todo.start).date() === selectedDay) // Filter by the same day
+      .map(todo => dayjs(todo.start).hour());
+
+   
+
+      //Find the first available hour
+      let startHour = 0; // Start checking from 1 AM
+      while (occupiedHours.includes(startHour)) {
+        startHour++;
+      }
+
+  
       setIsNew(true);
       const id = 0;
       const title = "";
+      const start = dayjs(s).hour(startHour).minute(0).toDate();
       const end = dayjs(start).add(59, "minute").toDate();
       setEventData({ id, title, start, end }); // Store event details in state
       showModal({ title: "" });
-
-      // addNewTodo(title,start,end);
+     
     },
-    [additionalEvents]
+    [todos,additionalEvents]
   );
 
   const editEvent = (event: any) => {
@@ -121,6 +143,7 @@ function List({ navigation }: any) {
       end: event.end,
     }); // Load event data
     showModal({ title: event.title }); // Open modal for editing
+    console.log(event.id)
   };
   const addNewTodo = async (title: string, start: Date, end: Date) => {
     const { data, error } = await supabase
@@ -164,6 +187,7 @@ function List({ navigation }: any) {
 
     console.log("Todos:", sortedTodos);
     setTodos(sortedTodos); // Update the todos state
+    setAdditionalEvents(sortedTodos);
   }
 
   const updateTodo = async (id: number, title: string) => {
@@ -184,6 +208,29 @@ function List({ navigation }: any) {
     fetchTodos();
   }, []);
 
+
+  const renderHeader: React.FC<CalendarHeaderProps<ICalendarEventBase>> = ({
+    dateRange,
+  }) => {
+    return (
+      <View style={styles.headerContainer}>
+        {dateRange.map((date, index) => (
+          <View key={index}>
+            <Text className="text-center text-base text-white bg-blue-500 p-2 max-w-fit mx-auto rounded-full">{dayjs(date).format('MMM D')}</Text>
+            <Button
+                    onPress={() => addEvent(date.toDate())}
+                    mode="contained"
+                    style={{ marginTop: 10 }}
+                  >
+                    Todoを追加する
+                    ＋
+                  </Button>
+          </View>
+        ))}
+      </View>
+    );
+  };
+
   return (
     <View className="px-4" style={{ flex: 1 }}>
       <ScrollView>
@@ -193,10 +240,14 @@ function List({ navigation }: any) {
           <View>
             <SafeAreaView>
               <Calendar
-                hourComponent={EmptyHourComponent} // Hide hour labels
+                renderHeader={renderHeader}
+                locale="ja"
+                // hourComponent={EmptyHourComponent} // Hide hour labels
                 height={height - 60}
                 events={[...todos, ...additionalEvents]}
-                onPressCell={addEvent}
+                hideNowIndicator={true}
+                maxHour={12}
+                // onPressCell={addEvent}
                 onPressEvent={editEvent}
                 sortedMonthView={false}
                 mode={"week"}
@@ -244,6 +295,7 @@ function List({ navigation }: any) {
 export default List;
 
 const styles = StyleSheet.create({
+  headerContainer: { flexDirection: "row", justifyContent: "space-around", padding: 5 },
   buttonContainer: {
     backgroundColor: "#f1f1f1",
     borderRadius: 10,
@@ -268,3 +320,4 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
 });
+
