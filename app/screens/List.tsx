@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   Text,
 } from "react-native";
-import { Button, TextInput, Portal, Modal } from "react-native-paper";
+import { Button, TextInput, Portal, Modal, Checkbox } from "react-native-paper";
 import MyCalendar from "../../app/screens/calendar";
 import { supabase } from "../../lib/supabase";
 import dayjs from "dayjs";
@@ -24,29 +24,54 @@ import "dayjs/locale/ja";
 
 export type Item = {
   title: string;
-  id: string;
+  id: number;
   start: Date;
   end: Date;
+  disabled: boolean;
 };
 
 const EmptyHourComponent = () => <View />; // Empty component
 
-const renderEvent = <T extends ICalendarEventBase & { id?: string | number }>(
-  event: T,
-  touchableOpacityProps: CalendarTouchableOpacityProps
-) => {
-  // Extract key from touchableOpacityProps if it's present
-  const { key, ...restProps } = touchableOpacityProps;
 
-  return (
-    <TouchableOpacity key={key} {...restProps} className="justify-center">
-      <Text className="text-base text-center text-white">{event.title}</Text>
-      {/* {event.id && <Text className="text-xs text-center text-gray-300">ID: {event.id}</Text>} */}
-    </TouchableOpacity>
-  );
-};
 
 function List({ navigation }: any) {
+
+
+  const renderEvent = <T extends ICalendarEventBase & { id?: string | number }>(
+    event: T,
+    touchableOpacityProps: CalendarTouchableOpacityProps
+  ) => {
+    // Extract key from touchableOpacityProps if it's present
+    const { key, ...restProps } = touchableOpacityProps;
+    const [checked, setChecked] = React.useState(false);
+    const completeTodo = async (id: number, disabled: any) => {
+      const { data, error } = await supabase
+        .from("todo") // your table name
+        .update({ disabled: !disabled })
+        .eq("id", id);
+  
+      if (error) {
+        console.error("Error inserting todo:", error);
+      } else {
+        console.log("Todo added:", data);
+        fetchTodos();
+      }
+    };
+    return (
+      <TouchableOpacity key={key} {...restProps} className="flex-row ">
+        <Checkbox
+        status={event.disabled ? 'checked' : 'unchecked'}
+        onPress={() => {
+          setChecked(!checked);
+          completeTodo(event.id, event.disabled);
+        }}
+      />
+      <Text className="text-base text-center text-white" style={event.disabled ? styles.strikethrough : ''}>{event.title}</Text>
+      </TouchableOpacity>
+    );
+  };
+
+
   const [eventData, setEventData] = React.useState<{
     id: number;
     title: string;
@@ -72,6 +97,9 @@ function List({ navigation }: any) {
 
   const [isNew, setIsNew] = useState(false);
 
+  const dismissModal = () => {
+    setVisible(false);
+  }
   const showModal = (item: any, date: Date) => {
     setVisible(true);
     setSelectedItem(item);
@@ -199,6 +227,8 @@ function List({ navigation }: any) {
     }
   };
 
+  
+
   useEffect(() => {
     fetchTodos();
   }, []);
@@ -266,7 +296,7 @@ function List({ navigation }: any) {
         <Portal>
           <Modal
             visible={visible}
-            onDismiss={hideModal}
+            onDismiss={dismissModal}
             contentContainerStyle={containerStyle}
           >
             {selectedItem && (
@@ -322,4 +352,7 @@ const styles = StyleSheet.create({
     height: 5,
     marginBottom: 20,
   },
+  strikethrough: {
+    textDecorationLine: 'line-through',
+  }
 });
